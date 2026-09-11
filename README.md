@@ -6,8 +6,8 @@ offers them alongside the plain folder.
 
 Targets **Linux** and **Windows**. Built with [Tauri v2](https://tauri.app) and
 [Svelte 5](https://svelte.dev). Feature logic (scanner, config, search, launcher) is
-TypeScript; the Rust side registers plugins and owns the OS-lifecycle glue (tray, overlay
-show/hide, settings window, quit). **Rust is preferred whenever it gives better performance
+TypeScript; the Rust side registers plugins and owns the OS-lifecycle glue (tray, global
+shortcut, overlay show/hide, settings window, quit). **Rust is preferred whenever it gives better performance
 or user experience**, TypeScript-only is not a hard rule.
 
 ## Prerequisites
@@ -52,10 +52,12 @@ pnpm test           # vitest
 src/
   routes/             SvelteKit pages: `/` overlay, `/settings` settings window
   lib/overlay.ts      wrappers over the Rust overlay commands
+  lib/shortcut.ts     wrappers over the Rust shortcut commands
   lib/core/           pure TypeScript: scanner, launcher, config (unit-tested)
 src-tauri/
   src/lib.rs          plugin registration, tray + command wiring
-  src/overlay.rs      show / hide / focus-loss / settings window / quit
+  src/overlay.rs      show / hide / toggle / focus-loss / settings window / quit
+  src/shortcut.rs     global shortcut registration and runtime changes
   src/tray.rs         tray icon and menu (Show, Settings, Quit)
   capabilities/       permission allow-list for the frontend
   tauri.conf.json     window + bundle configuration
@@ -84,8 +86,37 @@ Platform notes:
   frames, negligible cost for a small overlay). Export the variable yourself, e.g. `=0`, to
   override it.
 
-## Global shortcut on Wayland
+## Triggering the overlay
 
-Wayland compositors do not let applications grab global keys, so the in-app shortcut only
-works on Windows and Linux/X11. On Wayland, bind a shortcut in your desktop environment to the
-app binary: the running instance receives the second launch and shows the overlay.
+The default shortcut is <kbd>Ctrl</kbd>+<kbd>Alt</kbd>+<kbd>R</kbd>. Pressing it shows the
+overlay; pressing it again while the overlay has focus hides it. The tray **Show** entry and
+a second launch of the binary are the other two triggers — all three share one code path.
+
+The shortcut is registered in Rust at startup, before the webview loads, so it keeps working
+while the overlay is reloading or has crashed. The settings window re-registers it whenever the
+configured value changes, without a restart.
+
+### Wayland
+
+Wayland compositors never deliver key events to an application's global grab, and under
+XWayland the grab _succeeds_ while never firing — so the app detects a Wayland session
+(`XDG_SESSION_TYPE` / `WAYLAND_DISPLAY`) and does not register at all, rather than claiming a
+key it cannot receive. Bind a desktop-environment shortcut to the binary with `--toggle`
+instead: the running instance receives the second launch and toggles the overlay.
+
+**KDE Plasma:** System Settings → Keyboard → Shortcuts → Add Command, enter
+`repo-quick-access --toggle`, then assign the key.
+
+**GNOME:** Settings → Keyboard → View and Customize Shortcuts → Custom Shortcuts → **+**, with
+`repo-quick-access --toggle` as the command. Equivalent from the shell:
+
+```sh
+path=/org/gnome/settings-daemon/plugins/media-keys/custom-keybindings/repo-quick-access/
+gsettings set org.gnome.settings-daemon.plugins.media-keys custom-keybindings "['$path']"
+gsettings set org.gnome.settings-daemon.plugins.media-keys.custom-keybinding:$path name 'Repo Quick Access'
+gsettings set org.gnome.settings-daemon.plugins.media-keys.custom-keybinding:$path command 'repo-quick-access --toggle'
+gsettings set org.gnome.settings-daemon.plugins.media-keys.custom-keybinding:$path binding '<Control><Alt>r'
+```
+
+Without `--toggle` a relaunch only ever shows the overlay, which is what a desktop icon or
+launcher entry should do.

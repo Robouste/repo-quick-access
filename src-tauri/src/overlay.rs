@@ -60,6 +60,67 @@ pub fn hide(app: &AppHandle) {
     }
 }
 
+/// Flag on a relaunch that asks for toggle rather than plain show semantics.
+pub const TOGGLE_FLAG: &str = "--toggle";
+
+/// What a trigger should do, given the overlay's current state.
+///
+/// A visible overlay that does not hold focus means the compositor refused it (or
+/// another window took it back); the user pressing the trigger then wants the overlay
+/// in front, not gone. Only a visible *and* focused overlay is dismissed.
+#[derive(Debug, PartialEq, Eq)]
+pub enum Action {
+    Show,
+    Focus,
+    Hide,
+}
+
+impl Action {
+    pub fn decide(visible: bool, focused: bool) -> Self {
+        match (visible, focused) {
+            (false, _) => Action::Show,
+            (true, false) => Action::Focus,
+            (true, true) => Action::Hide,
+        }
+    }
+}
+
+/// The global shortcut's handler: show the overlay, or dismiss it if it is already up.
+pub fn toggle(app: &AppHandle) {
+    let Some(window) = app.get_webview_window(MAIN) else {
+        return;
+    };
+    // A window whose state cannot be read is treated as not up, so the trigger still
+    // brings the overlay back rather than doing nothing.
+    let visible = window.is_visible().unwrap_or(false);
+    let focused = window.is_focused().unwrap_or(false);
+    match Action::decide(visible, focused) {
+        Action::Show => show(app),
+        Action::Focus => {
+            let _ = window.set_focus();
+        }
+        Action::Hide => hide(app),
+    }
+}
+
+/// Whether a second launch asked for toggle semantics.
+pub fn wants_toggle<S: AsRef<str>>(args: &[S]) -> bool {
+    args.iter().any(|arg| arg.as_ref() == TOGGLE_FLAG)
+}
+
+/// Handles a second launch of the binary (the Wayland trigger path, or a desktop icon).
+///
+/// A bare relaunch shows the overlay, which is what clicking a launcher entry means.
+/// The documented desktop-environment shortcut passes `--toggle` so that the key
+/// behaves exactly like the native grab on X11 and Windows.
+pub fn on_relaunch<S: AsRef<str>>(app: &AppHandle, args: &[S]) {
+    if wants_toggle(args) {
+        toggle(app);
+    } else {
+        show(app);
+    }
+}
+
 pub fn open_settings(app: &AppHandle) -> tauri::Result<()> {
     if let Some(window) = app.get_webview_window(SETTINGS) {
         window.show()?;
@@ -126,7 +187,32 @@ pub fn quit(app: AppHandle) {
 
 #[cfg(test)]
 mod tests {
-    use super::FocusGuard;
+    use super::{Action, FocusGuard};
+
+    #[test]
+    fn a_hidden_overlay_is_shown() {
+        assert_eq!(Action::decide(false, false), Action::Show);
+        // Focus on a hidden window is meaningless; show regardless.
+        assert_eq!(Action::decide(false, true), Action::Show);
+    }
+
+    #[test]
+    fn a_visible_but_unfocused_overlay_is_brought_to_the_front() {
+        assert_eq!(Action::decide(true, false), Action::Focus);
+    }
+
+    #[test]
+    fn a_visible_focused_overlay_is_dismissed() {
+        assert_eq!(Action::decide(true, true), Action::Hide);
+    }
+
+    #[test]
+    fn only_the_toggle_flag_selects_toggle_semantics() {
+        assert!(super::wants_toggle(&["repo-quick-access", "--toggle"]));
+        assert!(!super::wants_toggle(&["repo-quick-access"]));
+        assert!(!super::wants_toggle::<&str>(&[]));
+        assert!(!super::wants_toggle(&["--toggle-something"]));
+    }
 
     #[test]
     fn blur_before_first_focus_does_not_hide() {

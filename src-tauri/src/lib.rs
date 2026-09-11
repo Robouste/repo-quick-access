@@ -2,6 +2,7 @@
 // on the webview (tray, overlay show/hide, settings window, quit). Feature logic
 // (scanner, config, search, launcher) lives in the TypeScript frontend.
 mod overlay;
+mod shortcut;
 mod tray;
 
 pub fn run() {
@@ -9,10 +10,10 @@ pub fn run() {
     apply_webkitgtk_workarounds();
 
     tauri::Builder::default()
-        // Must be registered first. A second launch (e.g. a Wayland desktop
-        // shortcut bound to the binary) is forwarded here and shows the overlay.
-        .plugin(tauri_plugin_single_instance::init(|app, _args, _cwd| {
-            overlay::show(app);
+        // Must be registered first. A second launch (e.g. a Wayland desktop shortcut
+        // bound to the binary) is forwarded here instead of starting a new process.
+        .plugin(tauri_plugin_single_instance::init(|app, args, _cwd| {
+            overlay::on_relaunch(app, args.as_slice());
         }))
         .plugin(tauri_plugin_global_shortcut::Builder::new().build())
         .plugin(tauri_plugin_fs::init())
@@ -24,8 +25,11 @@ pub fn run() {
             None,
         ))
         .manage(overlay::OverlayState::default())
+        .manage(shortcut::Registration::default())
         .setup(|app| {
             tray::build(app.handle())?;
+            // Runs on the main thread, as the hotkey manager requires.
+            shortcut::init(app.handle());
             Ok(())
         })
         .on_window_event(overlay::on_window_event)
@@ -34,6 +38,9 @@ pub fn run() {
             overlay::hide_overlay,
             overlay::open_settings_window,
             overlay::quit,
+            shortcut::get_shortcut,
+            shortcut::set_shortcut,
+            shortcut::shortcut_status,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
