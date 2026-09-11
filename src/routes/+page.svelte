@@ -1,14 +1,32 @@
 <script lang="ts">
-  import { resolve } from "$app/paths";
+  import { hideOverlay, openSettings } from "$lib/overlay";
 
   // Overlay window: search input + repository list. Filled in by later tickets.
   let query = $state("");
+  let input: HTMLInputElement | undefined = $state();
+
+  function onKeydown(event: KeyboardEvent) {
+    if (event.key === "Escape") {
+      event.preventDefault();
+      void hideOverlay();
+    }
+  }
 </script>
+
+<!-- The webview regains focus every time the overlay is shown: put the caret back. -->
+<svelte:window onkeydown={onKeydown} onfocus={() => input?.focus()} />
 
 <main class="overlay">
   <header>
-    <input type="search" placeholder="Search repositories…" bind:value={query} />
-    <a href={resolve("/settings")} aria-label="Settings">⚙</a>
+    <!-- svelte-ignore a11y_autofocus -->
+    <input
+      type="search"
+      placeholder="Search repositories…"
+      bind:value={query}
+      bind:this={input}
+      autofocus
+    />
+    <button type="button" aria-label="Settings" onclick={() => void openSettings()}>⚙</button>
   </header>
   <ul class="results">
     <li class="empty">No folders configured yet.</li>
@@ -49,10 +67,13 @@
     color: inherit;
   }
 
-  a {
+  button {
+    background: none;
+    border: none;
     color: inherit;
-    text-decoration: none;
     font-size: 1.25rem;
+    cursor: pointer;
+    padding: 4px;
   }
 
   .results {
