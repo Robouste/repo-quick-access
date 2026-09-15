@@ -49,13 +49,14 @@ function basename(path: string): string {
 }
 
 /**
- * Scans one directory and, unless it turns out to be a repo, its subdirectories down to
- * `depthLeft` levels further. Once a directory is recognized as a repo (it has a `.git`
- * entry) recursion stops there — nested `.git` folders (vendored copies, submodules)
- * aren't reported as separate repos — but `.code-workspace` files directly inside it
- * still are, tagged with `parentRepo`.
+ * Scans one directory. Once a directory is recognized as a repo (it has a `.git` entry),
+ * recursion stops there — nested `.git` folders (vendored copies, submodules) aren't
+ * reported as separate repos, and `.code-workspace` files directly inside it are reported
+ * tagged with `parentRepo`. A directory that isn't a repo is never reported itself
+ * (including any `.code-workspace` files sitting loose inside it) — only its
+ * subdirectories are walked, with no depth limit.
  */
-async function walk(fs: Fs, path: string, name: string, depthLeft: number): Promise<RepoEntry[]> {
+async function walk(fs: Fs, path: string, name: string): Promise<RepoEntry[]> {
   let entries: FsDirEntry[];
   try {
     entries = await fs.readDir(path);
@@ -66,32 +67,29 @@ async function walk(fs: Fs, path: string, name: string, depthLeft: number): Prom
   }
 
   const isRepo = entries.some((entry) => entry.name === GIT_MARKER);
-  const results: RepoEntry[] = [];
 
   if (isRepo) {
-    results.push({ path, name, kind: "folder" });
-  }
-
-  for (const entry of entries) {
-    if (entry.isFile && entry.name.endsWith(WORKSPACE_SUFFIX)) {
-      results.push({
-        path: joinPath(path, entry.name),
-        name: entry.name.slice(0, -WORKSPACE_SUFFIX.length),
-        kind: "workspace",
-        parentRepo: isRepo ? path : undefined,
-      });
-    }
-  }
-
-  if (!isRepo && depthLeft > 0) {
+    const results: RepoEntry[] = [{ path, name, kind: "folder" }];
     for (const entry of entries) {
-      if (entry.isDirectory && !entry.isSymlink) {
-        const child = await walk(fs, joinPath(path, entry.name), entry.name, depthLeft - 1);
-        results.push(...child);
+      if (entry.isFile && entry.name.endsWith(WORKSPACE_SUFFIX)) {
+        results.push({
+          path: joinPath(path, entry.name),
+          name: entry.name.slice(0, -WORKSPACE_SUFFIX.length),
+          kind: "workspace",
+          parentRepo: path,
+        });
       }
     }
+    return results;
   }
 
+  const results: RepoEntry[] = [];
+  for (const entry of entries) {
+    if (entry.isDirectory && !entry.isSymlink) {
+      const child = await walk(fs, joinPath(path, entry.name), entry.name);
+      results.push(...child);
+    }
+  }
   return results;
 }
 
@@ -101,9 +99,7 @@ export async function scanFolders(
   fs: Fs = tauriFs,
 ): Promise<RepoEntry[]> {
   const perFolder = await Promise.all(
-    folders.map((folder) =>
-      walk(fs, folder.path, basename(folder.path), Math.max(folder.depth, 0)),
-    ),
+    folders.map((folder) => walk(fs, folder.path, basename(folder.path))),
   );
   return perFolder.flat();
 }

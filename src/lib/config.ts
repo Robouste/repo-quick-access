@@ -10,8 +10,6 @@ import { load, Store } from "@tauri-apps/plugin-store";
 export interface ScannedFolder {
   /** Absolute path chosen through the native folder dialog. */
   path: string;
-  /** How many directory levels below `path` the scanner descends. */
-  depth: number;
 }
 
 export interface Config {
@@ -24,7 +22,6 @@ export interface Config {
   vsCodePath?: string;
 }
 
-export const DEFAULT_DEPTH = 1;
 export const CURRENT_VERSION = 1;
 
 const FILE = "settings.json";
