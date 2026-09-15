@@ -27,7 +27,6 @@ Wayland where a global shortcut can't be registered directly.
 
 The following is only needed to build from source — skip it if you installed a release above.
 
-
 - Node.js 24 + [pnpm](https://pnpm.io)
 - Rust stable via [rustup](https://rustup.rs)
 - Platform libraries:
