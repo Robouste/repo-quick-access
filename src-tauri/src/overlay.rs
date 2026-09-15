@@ -121,19 +121,37 @@ pub fn on_relaunch<S: AsRef<str>>(app: &AppHandle, args: &[S]) {
     }
 }
 
-pub fn open_settings(app: &AppHandle) -> tauri::Result<()> {
-    if let Some(window) = app.get_webview_window(SETTINGS) {
-        window.show()?;
-        window.unminimize()?;
-        window.set_focus()?;
-        return Ok(());
-    }
+/// Builds the settings window hidden, at startup, alongside `main`.
+///
+/// Building it lazily from inside the `open_settings_window` command used to hang on
+/// Windows: creating a WebviewWindow spins up its WebView2 controller asynchronously,
+/// and the completion callback that tells it to navigate is delivered through the main
+/// thread's message loop. Doing that from a thread already occupied servicing the
+/// command that triggered the build starves that callback forever, so the webview sits
+/// at `about:blank` and the app eventually stops responding entirely. Creating it during
+/// `setup` (before the event loop is busy dispatching commands) avoids the race; `main`
+/// already avoids it the same way, by being declared in `tauri.conf.json` instead of
+/// built on demand.
+pub fn init_settings_window(app: &AppHandle) -> tauri::Result<()> {
     WebviewWindowBuilder::new(app, SETTINGS, WebviewUrl::App("settings".into()))
         .title("Repo Quick Access – Settings")
         .inner_size(560.0, 440.0)
         .min_inner_size(400.0, 300.0)
         .center()
+        .visible(false)
         .build()?;
+    Ok(())
+}
+
+pub fn open_settings(app: &AppHandle) -> tauri::Result<()> {
+    let Some(window) = app.get_webview_window(SETTINGS) else {
+        // Should always exist by the time this command can be invoked; rebuild
+        // defensively rather than leave the user with a dead menu entry.
+        return init_settings_window(app);
+    };
+    window.show()?;
+    window.unminimize()?;
+    window.set_focus()?;
     Ok(())
 }
 

@@ -31,6 +31,9 @@ pub fn run() {
         .manage(shortcut::Registration::default())
         .setup(|app| {
             tray::build(app.handle())?;
+            // Built hidden here rather than on first use of the settings menu entry;
+            // see `overlay::init_settings_window` for why that matters on Windows.
+            overlay::init_settings_window(app.handle())?;
             // Runs on the main thread, as the hotkey manager requires.
             shortcut::init(app.handle());
             Ok(())
