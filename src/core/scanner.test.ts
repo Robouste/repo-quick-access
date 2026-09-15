@@ -27,12 +27,12 @@ describe("scanFolders", () => {
   it("recognizes the configured folder itself as a repo", async () => {
     const fs = fakeFs({ "/code/repo-a": [dir(".git"), file("README.md")] });
 
-    const repos = await scanFolders([{ path: "/code/repo-a", depth: 0 }], fs);
+    const repos = await scanFolders([{ path: "/code/repo-a" }], fs);
 
     expect(repos).toEqual([{ path: "/code/repo-a", name: "repo-a", kind: "folder" }]);
   });
 
-  it("finds repos one level below the configured folder at the default depth", async () => {
+  it("finds repos one level below the configured folder", async () => {
     const fs = fakeFs({
       "/code": [dir("repo-a"), dir("repo-b"), dir("not-a-repo")],
       "/code/repo-a": [dir(".git")],
@@ -40,7 +40,7 @@ describe("scanFolders", () => {
       "/code/not-a-repo": [file("notes.txt")],
     });
 
-    const repos = await scanFolders([{ path: "/code", depth: 1 }], fs);
+    const repos = await scanFolders([{ path: "/code" }], fs);
 
     expect(repos).toEqual(
       expect.arrayContaining([
@@ -51,18 +51,16 @@ describe("scanFolders", () => {
     expect(repos).toHaveLength(2);
   });
 
-  it("does not descend past the configured depth", async () => {
+  it("descends arbitrarily deep through non-repo folders to find repos", async () => {
     const fs = fakeFs({
       "/code": [dir("group")],
       "/code/group": [dir("repo-a")],
       "/code/group/repo-a": [dir(".git")],
     });
 
-    const shallow = await scanFolders([{ path: "/code", depth: 1 }], fs);
-    expect(shallow).toEqual([]);
+    const repos = await scanFolders([{ path: "/code" }], fs);
 
-    const deep = await scanFolders([{ path: "/code", depth: 2 }], fs);
-    expect(deep).toEqual([{ path: "/code/group/repo-a", name: "repo-a", kind: "folder" }]);
+    expect(repos).toEqual([{ path: "/code/group/repo-a", name: "repo-a", kind: "folder" }]);
   });
 
   it("does not look for nested repos inside an already-discovered repo", async () => {
@@ -72,7 +70,7 @@ describe("scanFolders", () => {
       "/code/repo-a/vendor": [dir(".git")],
     });
 
-    const repos = await scanFolders([{ path: "/code", depth: 5 }], fs);
+    const repos = await scanFolders([{ path: "/code" }], fs);
 
     expect(repos).toEqual([{ path: "/code/repo-a", name: "repo-a", kind: "folder" }]);
   });
@@ -83,7 +81,7 @@ describe("scanFolders", () => {
       "/code/repo-a": [dir(".git"), file("repo-a.code-workspace")],
     });
 
-    const repos = await scanFolders([{ path: "/code", depth: 1 }], fs);
+    const repos = await scanFolders([{ path: "/code" }], fs);
 
     expect(repos).toEqual(
       expect.arrayContaining([
@@ -98,24 +96,15 @@ describe("scanFolders", () => {
     );
   });
 
-  it("finds a workspace file directly in a scanned folder with no parent repo", async () => {
+  it("ignores a workspace file that isn't inside a repo", async () => {
     const fs = fakeFs({
       "/code": [file("team.code-workspace"), dir("repo-a")],
       "/code/repo-a": [dir(".git")],
     });
 
-    const repos = await scanFolders([{ path: "/code", depth: 1 }], fs);
+    const repos = await scanFolders([{ path: "/code" }], fs);
 
-    expect(repos).toEqual(
-      expect.arrayContaining([
-        {
-          path: "/code/team.code-workspace",
-          name: "team",
-          kind: "workspace",
-          parentRepo: undefined,
-        },
-      ]),
-    );
+    expect(repos).toEqual([{ path: "/code/repo-a", name: "repo-a", kind: "folder" }]);
   });
 
   it("skips symlinked directories rather than following them", async () => {
@@ -124,7 +113,7 @@ describe("scanFolders", () => {
       "/code/linked-repo": [dir(".git")],
     });
 
-    const repos = await scanFolders([{ path: "/code", depth: 1 }], fs);
+    const repos = await scanFolders([{ path: "/code" }], fs);
 
     expect(repos).toEqual([]);
   });
@@ -132,13 +121,7 @@ describe("scanFolders", () => {
   it("skips a configured folder that can't be read instead of failing the whole scan", async () => {
     const fs = fakeFs({ "/code/repo-a": [dir(".git")] });
 
-    const repos = await scanFolders(
-      [
-        { path: "/code/missing", depth: 1 },
-        { path: "/code/repo-a", depth: 0 },
-      ],
-      fs,
-    );
+    const repos = await scanFolders([{ path: "/code/missing" }, { path: "/code/repo-a" }], fs);
 
     expect(repos).toEqual([{ path: "/code/repo-a", name: "repo-a", kind: "folder" }]);
   });
@@ -149,13 +132,7 @@ describe("scanFolders", () => {
       "/other/repo-b": [dir(".git")],
     });
 
-    const repos = await scanFolders(
-      [
-        { path: "/code/repo-a", depth: 0 },
-        { path: "/other/repo-b", depth: 0 },
-      ],
-      fs,
-    );
+    const repos = await scanFolders([{ path: "/code/repo-a" }, { path: "/other/repo-b" }], fs);
 
     expect(repos).toEqual(
       expect.arrayContaining([
@@ -181,7 +158,7 @@ describe("refreshRepos / getCachedRepos", () => {
   it("updates the cache once a scan resolves", async () => {
     const fs = fakeFs({ "/code/repo-a": [dir(".git")] });
 
-    const result = await refreshRepos([{ path: "/code/repo-a", depth: 0 }], fs);
+    const result = await refreshRepos([{ path: "/code/repo-a" }], fs);
 
     expect(result).toEqual([{ path: "/code/repo-a", name: "repo-a", kind: "folder" }]);
     expect(getCachedRepos()).toEqual(result);
@@ -195,7 +172,7 @@ describe("refreshRepos / getCachedRepos", () => {
         return Promise.resolve(path === "/code/repo-a" ? [dir(".git")] : []);
       },
     };
-    const folders = [{ path: "/code/repo-a", depth: 0 }];
+    const folders = [{ path: "/code/repo-a" }];
 
     const [a, b] = await Promise.all([refreshRepos(folders, fs), refreshRepos(folders, fs)]);
 

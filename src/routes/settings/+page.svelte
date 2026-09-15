@@ -4,7 +4,6 @@
   import { open } from "@tauri-apps/plugin-dialog";
   import { getAutostart, setAutostart } from "$lib/autostart";
   import {
-    DEFAULT_DEPTH,
     loadConfig,
     saveFolders,
     saveShortcut,
@@ -47,17 +46,12 @@
   async function addFolder() {
     const selected = await open({ directory: true, multiple: false });
     if (typeof selected !== "string" || folders.some((f) => f.path === selected)) return;
-    folders = [...folders, { path: selected, depth: DEFAULT_DEPTH }];
+    folders = [...folders, { path: selected }];
     await persistFolders();
   }
 
   function removeFolder(path: string) {
     folders = folders.filter((f) => f.path !== path);
-    void persistFolders();
-  }
-
-  function setDepth(path: string, depth: number) {
-    folders = folders.map((f) => (f.path === path ? { ...f, depth } : f));
     void persistFolders();
   }
 
@@ -124,16 +118,6 @@
           {#each folders as folder (folder.path)}
             <li>
               <span class="path" title={folder.path}>{folder.path}</span>
-              <label>
-                Depth
-                <input
-                  type="number"
-                  min="0"
-                  step="1"
-                  value={folder.depth}
-                  onchange={(e) => setDepth(folder.path, e.currentTarget.valueAsNumber || 0)}
-                />
-              </label>
               <button
                 type="button"
                 aria-label="Remove folder"
@@ -235,10 +219,6 @@
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
-  }
-
-  .folders input[type="number"] {
-    width: 3.5rem;
   }
 
   .shortcut-row {
