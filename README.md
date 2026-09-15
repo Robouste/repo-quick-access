@@ -10,7 +10,23 @@ TypeScript; the Rust side registers plugins and owns the OS-lifecycle glue (tray
 shortcut, overlay show/hide, settings window, quit). **Rust is preferred whenever it gives better performance
 or user experience**, TypeScript-only is not a hard rule.
 
+## Installation
+
+Grab the latest build from the
+[GitHub releases page](https://github.com/Robouste/repo-quick-access/releases/latest):
+
+- **Linux:** the `.AppImage` runs anywhere (`chmod +x` it, then run); `.deb` and `.rpm` are
+  provided for Debian/Ubuntu and Fedora-based distros.
+- **Windows:** the `.msi` or the NSIS `.exe` installer.
+
+The app starts hidden — look for the tray icon after launching it, and see
+[Triggering the overlay](#triggering-the-overlay) below to set up the shortcut, especially on
+Wayland where a global shortcut can't be registered directly.
+
 ## Prerequisites
+
+The following is only needed to build from source — skip it if you installed a release above.
+
 
 - Node.js 24 + [pnpm](https://pnpm.io)
 - Rust stable via [rustup](https://rustup.rs)
