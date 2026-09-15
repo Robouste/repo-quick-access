@@ -1,6 +1,6 @@
 {
   "name": "repo-quick-access",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Shortcut-triggered overlay to open your git repositories in VS Code",
   "private": true,
   "packageManager": "pnpm@12.3.4",
