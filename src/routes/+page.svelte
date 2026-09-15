@@ -2,6 +2,7 @@
   import { onMount } from "svelte";
   import { hideOverlay, openSettings } from "$lib/overlay";
   import { loadConfig } from "$lib/config";
+  import { launchEditor } from "../core/launcher";
   import { moveSelection } from "../core/listNav";
   import { searchRepos } from "../core/repoGroups";
   import { getCachedRepos, refreshRepos, type RepoEntry } from "../core/scanner";
@@ -12,6 +13,9 @@
   let hasFolders = $state(true); // avoid an empty-state flash before the config loads
   let loading = $state(true);
   let input: HTMLInputElement | undefined = $state();
+  let vsCodePath: string | undefined = $state();
+  let launchError: string | undefined = $state();
+  let launchErrorTimer: ReturnType<typeof setTimeout> | undefined;
 
   const rows = $derived(searchRepos(query, entries));
 
@@ -25,6 +29,7 @@
   async function refresh() {
     const config = await loadConfig();
     hasFolders = config.folders.length > 0;
+    vsCodePath = config.vsCodePath;
     entries = await refreshRepos(config.folders);
   }
 
@@ -33,10 +38,20 @@
     selectedIndex = 0;
   }
 
+  function showLaunchError(message: string) {
+    launchError = message;
+    clearTimeout(launchErrorTimer);
+    launchErrorTimer = setTimeout(() => (launchError = undefined), 5000);
+  }
+
   async function open(entry: RepoEntry | undefined) {
     if (!entry) return;
-    // TODO(#8): shell out to `code <entry.path>` via src/core/launcher.ts instead of
-    // just closing — the launcher itself is a separate ticket.
+    try {
+      await launchEditor(entry.path, vsCodePath);
+    } catch (e) {
+      showLaunchError(e instanceof Error ? e.message : String(e));
+      return;
+    }
     reset();
     await hideOverlay();
   }
@@ -147,12 +162,7 @@
       <li class="empty">No matches for "{query}".</li>
     {:else}
       {#each rows as row, i (row.path)}
-        <li
-          class="row"
-          class:child={row.kind === "workspace" && row.parentRepo !== undefined}
-          role="presentation"
-          use:scrollIntoViewIfSelected={i === selectedIndex}
-        >
+        <li class="row" role="presentation" use:scrollIntoViewIfSelected={i === selectedIndex}>
           <button
             type="button"
             role="option"
@@ -170,6 +180,9 @@
       {/each}
     {/if}
   </ul>
+  {#if launchError}
+    <p class="toast" role="alert">{launchError}</p>
+  {/if}
 </main>
 
 <style>
@@ -253,11 +266,6 @@
     cursor: pointer;
   }
 
-  .row.child .row-button {
-    padding-left: 32px;
-    opacity: 0.85;
-  }
-
   .row-button.selected {
     background: #2f6feb44;
   }
@@ -266,5 +274,14 @@
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
+  }
+
+  .toast {
+    margin: 8px 0 0;
+    padding: 8px 12px;
+    border-radius: 8px;
+    background: #c0392b;
+    color: #fff;
+    font-size: 0.85rem;
   }
 </style>

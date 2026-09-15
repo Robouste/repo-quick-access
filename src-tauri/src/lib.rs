@@ -1,6 +1,9 @@
 // Rust shell: plugin registration plus the OS-lifecycle glue that must not depend
 // on the webview (tray, overlay show/hide, settings window, quit). Feature logic
-// (scanner, config, search, launcher) lives in the TypeScript frontend.
+// (scanner, config, search, default-editor launch) lives in the TypeScript frontend;
+// `launcher` only covers the custom-executable-path case, which needs a native spawn
+// outside the shell plugin's static capability scope (see its module doc).
+mod launcher;
 mod overlay;
 mod shortcut;
 mod tray;
@@ -41,6 +44,7 @@ pub fn run() {
             shortcut::get_shortcut,
             shortcut::set_shortcut,
             shortcut::shortcut_status,
+            launcher::launch_editor,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

@@ -5,7 +5,6 @@
 
 export interface Searchable {
   name: string;
-  path: string;
 }
 
 const WORD_BOUNDARY = /[\s/\\_.-]/;
@@ -35,12 +34,13 @@ export function fuzzyScore(query: string, target: string): number | undefined {
   return score - t.length * 0.01; // among equal matches, prefer the shorter target
 }
 
-const NAME_MATCH_BONUS = 5;
-
 /**
- * Filters and ranks `items` by the best of their `name`/`path` fuzzy score, best match
- * first. A `name` match counts extra — that's what the user is usually typing — but a
- * `path` match still surfaces the entry, so "src/foo" style queries work too.
+ * Filters and ranks `items` by their `name` fuzzy score, best match first.
+ *
+ * Matching only ever looks at `name`, not the full path: a subsequence match against an
+ * absolute path can span unrelated segments (e.g. "rpg" matching across ".../repos/f95-
+ * manager" — the "r"/"p" from "repos", the "g" from "manager"), surfacing entries the
+ * query has nothing to do with.
  */
 export function fuzzyFilter<T extends Searchable>(query: string, items: T[]): T[] {
   const trimmed = query.trim();
@@ -48,11 +48,9 @@ export function fuzzyFilter<T extends Searchable>(query: string, items: T[]): T[
 
   const scored: { item: T; score: number }[] = [];
   for (const item of items) {
-    const nameScore = fuzzyScore(trimmed, item.name);
-    const pathScore = fuzzyScore(trimmed, item.path);
-    if (nameScore === undefined && pathScore === undefined) continue;
-    const best = Math.max(nameScore ?? -Infinity, pathScore ?? -Infinity);
-    scored.push({ item, score: nameScore !== undefined ? best + NAME_MATCH_BONUS : best });
+    const score = fuzzyScore(trimmed, item.name);
+    if (score === undefined) continue;
+    scored.push({ item, score });
   }
   scored.sort((a, b) => b.score - a.score);
   return scored.map((s) => s.item);

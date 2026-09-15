@@ -15,4 +15,14 @@ describe("resolveConfig", () => {
     const folders = [{ path: "/home/user/code", depth: 1 }];
     expect(resolveConfig(99, folders).version).toBe(CURRENT_VERSION);
   });
+
+  it("leaves vsCodePath unset when nothing was stored", () => {
+    expect(resolveConfig(undefined, undefined).vsCodePath).toBeUndefined();
+  });
+
+  it("keeps a stored vsCodePath", () => {
+    expect(resolveConfig(1, [], "/opt/vscodium/bin/codium").vsCodePath).toBe(
+      "/opt/vscodium/bin/codium",
+    );
+  });
 });

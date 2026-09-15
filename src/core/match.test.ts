@@ -40,8 +40,8 @@ describe("fuzzyScore", () => {
 });
 
 describe("fuzzyFilter", () => {
-  function item(name: string, path = `/code/${name}`): Searchable {
-    return { name, path };
+  function item(name: string): Searchable {
+    return { name };
   }
 
   it("returns every item, unsorted, for an empty query", () => {
@@ -54,15 +54,17 @@ describe("fuzzyFilter", () => {
     expect(fuzzyFilter("zzz", items)).toEqual([]);
   });
 
-  it("ranks a name match above a path-only match", () => {
-    const nameMatch = item("access", "/code/other");
-    const pathMatchOnly = item("other", "/code/access");
-    const result = fuzzyFilter("access", [pathMatchOnly, nameMatch]);
-    expect(result).toEqual([nameMatch, pathMatchOnly]);
+  it("ranks a better name match above a weaker one", () => {
+    const strong = item("rpgm-translator");
+    const weak = item("f95-manager"); // "rpg" is a scattered subsequence, not intended
+    const result = fuzzyFilter("rpg", [weak, strong]);
+    expect(result).toEqual([strong]);
   });
 
-  it("matches against the path for queries that include a separator", () => {
-    const entry = item("frontend", "/code/repo-quick-access/frontend");
-    expect(fuzzyFilter("quick-access/front", [entry])).toEqual([entry]);
+  it("does not match a query that only exists across unrelated name parts", () => {
+    // Regression: "rpg" must not match via letters borrowed from elsewhere (e.g. a
+    // sibling's absolute path); scoring only `name` means "f95-manager" doesn't have an
+    // "r" or a "p" at all, so it can't match "rpg" no matter how the letters are spread.
+    expect(fuzzyFilter("rpg", [item("f95-manager")])).toEqual([]);
   });
 });

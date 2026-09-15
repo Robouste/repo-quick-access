@@ -8,6 +8,7 @@
     loadConfig,
     saveFolders,
     saveShortcut,
+    saveVsCodePath,
     type ScannedFolder,
   } from "$lib/config";
   import { acceleratorFromEvent } from "$lib/keyboard";
@@ -20,6 +21,7 @@
   let shortcutError: string | undefined = $state();
   let recording = $state(false);
   let autostart = $state(false);
+  let vsCodePath: string | undefined = $state();
 
   onMount(() => {
     void (async () => {
@@ -33,6 +35,7 @@
       shortcut = currentShortcut;
       shortcutStatus = currentStatus;
       autostart = currentAutostart;
+      vsCodePath = config.vsCodePath;
       loading = false;
     })();
   });
@@ -89,6 +92,18 @@
     const on = event.currentTarget.checked;
     await setAutostart(on);
     autostart = on;
+  }
+
+  async function pickVsCodePath() {
+    const selected = await open({ directory: false, multiple: false });
+    if (typeof selected !== "string") return;
+    vsCodePath = selected;
+    await saveVsCodePath(vsCodePath);
+  }
+
+  async function clearVsCodePath() {
+    vsCodePath = undefined;
+    await saveVsCodePath(undefined);
   }
 </script>
 
@@ -148,6 +163,21 @@
       {:else if shortcutStatus.kind === "failed"}
         <p class="error">Could not register {shortcutStatus.accelerator}: {shortcutStatus.error}</p>
       {/if}
+    </section>
+
+    <section>
+      <h2>Editor</h2>
+      <p class="hint">
+        Uses <kbd>code</kbd> on PATH by default. Set a custom path for Insiders, VSCodium, or an install
+        not on PATH.
+      </p>
+      <div class="shortcut-row">
+        <span class="path" title={vsCodePath}>{vsCodePath ?? "Default (code on PATH)"}</span>
+        <button type="button" onclick={() => void pickVsCodePath()}>Browse…</button>
+        {#if vsCodePath}
+          <button type="button" onclick={() => void clearVsCodePath()}>Reset</button>
+        {/if}
+      </div>
     </section>
 
     <section>

@@ -46,11 +46,31 @@ describe("groupEntries", () => {
 });
 
 describe("flattenRows", () => {
-  it("places a group's workspaces right after its folder", () => {
+  it("shows the folder when a repo has no workspace", () => {
+    const repoA = folder("/code/repo-a");
+
+    expect(flattenRows(groupEntries([repoA]))).toEqual([repoA]);
+  });
+
+  it("shows a repo's workspaces instead of its bare folder", () => {
     const repoA = folder("/code/repo-a");
     const ws = workspace("/code/repo-a/repo-a.code-workspace", "/code/repo-a");
 
-    expect(flattenRows(groupEntries([repoA, ws]))).toEqual([repoA, ws]);
+    expect(flattenRows(groupEntries([repoA, ws]))).toEqual([ws]);
+  });
+
+  it("shows every workspace when a repo has more than one", () => {
+    const repoA = folder("/code/repo-a");
+    const ws1 = workspace("/code/repo-a/one.code-workspace", "/code/repo-a");
+    const ws2 = workspace("/code/repo-a/two.code-workspace", "/code/repo-a");
+
+    expect(flattenRows(groupEntries([repoA, ws1, ws2]))).toEqual([ws1, ws2]);
+  });
+
+  it("shows a parentless workspace on its own", () => {
+    const ws = workspace("/code/team.code-workspace");
+
+    expect(flattenRows(groupEntries([ws]))).toEqual([ws]);
   });
 });
 
@@ -66,6 +86,6 @@ describe("searchRepos", () => {
     const repoA = folder("/code/repo-a");
     const ws = workspace("/code/repo-a/repo-a.code-workspace", "/code/repo-a");
 
-    expect(searchRepos("", [repoA, ws])).toEqual([repoA, ws]);
+    expect(searchRepos("", [repoA, ws])).toEqual([ws]);
   });
 });
